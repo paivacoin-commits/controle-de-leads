@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Database
+*.sqlite
+database.sqlite
+
+# WhatsApp session
+auth_info/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/

@@ -1,0 +1,20 @@
+{
+    "name": "redirect-plus-clone",
+    "version": "2.0.0",
+    "description": "Sistema de rastreamento multi-projeto com WhatsApp integrado",
+    "main": "server.js",
+    "type": "module",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js"
+    },
+    "dependencies": {
+        "@whiskeysockets/baileys": "^7.0.0-rc.9",
+        "better-sqlite3": "^9.2.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "pino": "^8.17.2",
+        "qrcode": "^1.5.3"
+    }
+}

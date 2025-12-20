@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirect+ Clone - Multi-Projetos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <div class="logo-icon">🚀</div>
+          <span class="logo-text">Redirect+</span>
+        </div>
+      </div>
+      <div class="whatsapp-status" id="waStatus">
+        <div class="wa-indicator disconnected"></div>
+        <span>WhatsApp</span>
+        <button class="btn btn-sm" id="waConnectBtn">Conectar</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-page="projects">📁 Projetos</a>
+        <a href="#" class="nav-item" data-page="whatsapp">📱 WhatsApp</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="version">v2.0</span>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="header">
+        <div class="header-left">
+          <button class="menu-toggle" id="menuToggle">☰</button>
+          <h1 class="page-title" id="pageTitle">Projetos</h1>
+        </div>
+        <div class="header-right">
+          <button class="btn btn-primary" id="newProjectBtn">➕ Novo Projeto</button>
+        </div>
+      </header>
+      <div class="page-container" id="pageContainer"></div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Modal</h3>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
