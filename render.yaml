@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: hotmart-tracker
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/whatsapp/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: whatsapp-session
+      mountPath: /opt/render/project/src/auth_info
+      sizeGB: 1
