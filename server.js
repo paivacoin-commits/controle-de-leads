@@ -7,8 +7,20 @@ import dotenv from 'dotenv';
 import QRCode from 'qrcode';
 import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import pino from 'pino';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
+
+// Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+if (supabase) {
+  console.log('✅ Supabase conectado!');
+} else {
+  console.log('⚠️ Supabase não configurado - usando armazenamento local');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -112,9 +124,88 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_INTERVAL = 5000; // 5 segundos base
 
+// Função customizada para salvar sessão no Supabase
+async function useSupabaseAuthState() {
+  const sessionId = 'whatsapp_session';
+
+  // Carregar sessão do Supabase
+  const { data: existingSession } = await supabase
+    .from('whatsapp_sessions')
+    .select('*')
+    .eq('session_id', sessionId)
+    .single();
+
+  let creds = existingSession?.creds ? JSON.parse(existingSession.creds) : null;
+  let keys = existingSession?.keys ? JSON.parse(existingSession.keys) : {};
+
+  const saveCreds = async () => {
+    const credsJson = JSON.stringify(creds);
+    const keysJson = JSON.stringify(keys);
+
+    const { error } = await supabase
+      .from('whatsapp_sessions')
+      .upsert({
+        session_id: sessionId,
+        creds: credsJson,
+        keys: keysJson,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'session_id' });
+
+    if (error) {
+      console.error('Erro ao salvar sessão no Supabase:', error);
+    } else {
+      console.log('💾 Sessão salva no Supabase');
+    }
+  };
+
+  return {
+    state: {
+      creds,
+      keys: {
+        get: (type, ids) => {
+          const data = {};
+          for (const id of ids) {
+            const value = keys[`${type}-${id}`];
+            if (value) data[id] = value;
+          }
+          return data;
+        },
+        set: async (data) => {
+          for (const category in data) {
+            for (const id in data[category]) {
+              const value = data[category][id];
+              if (value) {
+                keys[`${category}-${id}`] = value;
+              } else {
+                delete keys[`${category}-${id}`];
+              }
+            }
+          }
+          await saveCreds();
+        }
+      }
+    },
+    saveCreds
+  };
+}
+
 async function connectWhatsApp() {
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(join(__dirname, 'auth_info'));
+    // Usar Supabase se disponível, senão usar arquivo local
+    let state, saveCreds;
+
+    if (supabase) {
+      const authState = await useSupabaseAuthState();
+      state = authState.state;
+      saveCreds = authState.saveCreds;
+      console.log('📦 Usando Supabase para sessão do WhatsApp');
+    } else {
+      const authState = await useMultiFileAuthState(join(__dirname, 'auth_info'));
+      state = authState.state;
+      saveCreds = authState.saveCreds;
+      console.log('📁 Usando arquivo local para sessão do WhatsApp');
+    }
+
     const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({

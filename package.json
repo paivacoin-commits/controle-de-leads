@@ -9,6 +9,7 @@
         "dev": "node --watch server.js"
     },
     "dependencies": {
+        "@supabase/supabase-js": "^2.89.0",
         "@whiskeysockets/baileys": "^7.0.0-rc.9",
         "better-sqlite3": "^9.2.2",
         "cors": "^2.8.5",
