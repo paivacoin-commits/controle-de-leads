@@ -926,7 +926,7 @@ function keepAlive() {
     } catch (error) {
       console.log('🏓 Keep-alive ping falhou (normal em localhost)');
     }
-  }, 14 * 60 * 1000); // A cada 14 minutos (Render dorme após 15)
+  }, 5 * 60 * 1000); // A cada 5 minutos
 }
 
 // Start
