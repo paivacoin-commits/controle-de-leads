@@ -915,6 +915,20 @@ app.get('/api/whatsapp/groups/:groupId/export', (req, res) => {
   res.send(csv);
 });
 
+// Self-ping para manter o Render acordado (evita sleep após 15min)
+function keepAlive() {
+  const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+  setInterval(async () => {
+    try {
+      const response = await fetch(`${url}/api/whatsapp/status`);
+      console.log(`🏓 Keep-alive ping: ${response.status}`);
+    } catch (error) {
+      console.log('🏓 Keep-alive ping falhou (normal em localhost)');
+    }
+  }, 14 * 60 * 1000); // A cada 14 minutos (Render dorme após 15)
+}
+
 // Start
 app.listen(PORT, () => {
   console.log(`
@@ -928,4 +942,10 @@ app.listen(PORT, () => {
 
   // Iniciar conexão do WhatsApp automaticamente
   connectWhatsApp();
+
+  // Iniciar keep-alive para Render
+  if (process.env.RENDER_EXTERNAL_URL) {
+    console.log('🏓 Keep-alive ativado para Render');
+    keepAlive();
+  }
 });
