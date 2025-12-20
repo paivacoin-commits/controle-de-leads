@@ -124,94 +124,111 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_INTERVAL = 5000; // 5 segundos base
 
-// Função customizada para salvar sessão no Supabase
-async function useSupabaseAuthState() {
-  const sessionId = 'whatsapp_session';
+// Função para restaurar sessão do Supabase para arquivos locais
+async function restoreSessionFromSupabase() {
+  if (!supabase) return false;
 
-  // Carregar sessão do Supabase
-  const { data: existingSession } = await supabase
-    .from('whatsapp_sessions')
-    .select('*')
-    .eq('session_id', sessionId)
-    .single();
+  try {
+    const { data: session } = await supabase
+      .from('whatsapp_sessions')
+      .select('*')
+      .eq('session_id', 'whatsapp_session')
+      .single();
 
-  let creds = existingSession?.creds ? JSON.parse(existingSession.creds) : null;
-  let keys = existingSession?.keys ? JSON.parse(existingSession.keys) : {};
+    if (session?.creds) {
+      const fs = await import('fs');
+      const authPath = join(__dirname, 'auth_info');
 
-  const saveCreds = async () => {
-    const credsJson = JSON.stringify(creds);
-    const keysJson = JSON.stringify(keys);
+      // Criar pasta se não existir
+      if (!fs.existsSync(authPath)) {
+        fs.mkdirSync(authPath, { recursive: true });
+      }
+
+      // Restaurar creds
+      fs.writeFileSync(join(authPath, 'creds.json'), session.creds);
+
+      // Restaurar keys se existirem
+      if (session.keys) {
+        const keys = JSON.parse(session.keys);
+        for (const [filename, content] of Object.entries(keys)) {
+          fs.writeFileSync(join(authPath, filename), JSON.stringify(content));
+        }
+      }
+
+      console.log('📥 Sessão restaurada do Supabase');
+      return true;
+    }
+  } catch (error) {
+    console.log('� Nenhuma sessão encontrada no Supabase (primeira vez)');
+  }
+  return false;
+}
+
+// Função para salvar sessão no Supabase
+async function saveSessionToSupabase() {
+  if (!supabase) return;
+
+  try {
+    const fs = await import('fs');
+    const authPath = join(__dirname, 'auth_info');
+
+    if (!fs.existsSync(authPath)) return;
+
+    // Ler creds.json
+    const credsPath = join(authPath, 'creds.json');
+    if (!fs.existsSync(credsPath)) return;
+
+    const creds = fs.readFileSync(credsPath, 'utf8');
+
+    // Ler outros arquivos de keys
+    const keys = {};
+    const files = fs.readdirSync(authPath);
+    for (const file of files) {
+      if (file !== 'creds.json' && file.endsWith('.json')) {
+        const content = fs.readFileSync(join(authPath, file), 'utf8');
+        keys[file] = JSON.parse(content);
+      }
+    }
 
     const { error } = await supabase
       .from('whatsapp_sessions')
       .upsert({
-        session_id: sessionId,
-        creds: credsJson,
-        keys: keysJson,
+        session_id: 'whatsapp_session',
+        creds: creds,
+        keys: JSON.stringify(keys),
         updated_at: new Date().toISOString()
       }, { onConflict: 'session_id' });
 
     if (error) {
-      console.error('Erro ao salvar sessão no Supabase:', error);
+      console.error('❌ Erro ao salvar no Supabase:', error.message);
     } else {
       console.log('💾 Sessão salva no Supabase');
     }
-  };
-
-  return {
-    state: {
-      creds,
-      keys: {
-        get: (type, ids) => {
-          const data = {};
-          for (const id of ids) {
-            const value = keys[`${type}-${id}`];
-            if (value) data[id] = value;
-          }
-          return data;
-        },
-        set: async (data) => {
-          for (const category in data) {
-            for (const id in data[category]) {
-              const value = data[category][id];
-              if (value) {
-                keys[`${category}-${id}`] = value;
-              } else {
-                delete keys[`${category}-${id}`];
-              }
-            }
-          }
-          await saveCreds();
-        }
-      }
-    },
-    saveCreds
-  };
+  } catch (error) {
+    console.error('❌ Erro ao salvar sessão:', error.message);
+  }
 }
 
 async function connectWhatsApp() {
   try {
-    // Usar Supabase se disponível, senão usar arquivo local
-    let state, saveCreds;
-
+    // Restaurar sessão do Supabase antes de conectar
     if (supabase) {
-      const authState = await useSupabaseAuthState();
-      state = authState.state;
-      saveCreds = authState.saveCreds;
-      console.log('📦 Usando Supabase para sessão do WhatsApp');
-    } else {
-      const authState = await useMultiFileAuthState(join(__dirname, 'auth_info'));
-      state = authState.state;
-      saveCreds = authState.saveCreds;
-      console.log('📁 Usando arquivo local para sessão do WhatsApp');
+      await restoreSessionFromSupabase();
     }
+
+    const { state, saveCreds } = await useMultiFileAuthState(join(__dirname, 'auth_info'));
+
+    // Wrapper para salvar também no Supabase
+    const saveCredsWithSupabase = async () => {
+      await saveCreds();
+      await saveSessionToSupabase();
+    };
 
     const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: true,
       logger: pino({ level: 'silent' }),
       // Configurações para conexão mais estável
       connectTimeoutMs: 60000, // 60 segundos para conectar
@@ -223,7 +240,7 @@ async function connectWhatsApp() {
       generateHighQualityLinkPreview: false, // Desativa preview de links (mais leve)
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', saveCredsWithSupabase);
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
