@@ -36,17 +36,30 @@ npm start
 
 Acesse: http://localhost:3000
 
-## 🌐 Deploy no Oracle Cloud (Free Tier)
+## 🚂 Deploy no Railway (Recomendado)
 
-### 1. Criar conta no Oracle Cloud
-- Acesse: https://cloud.oracle.com
-- Crie uma conta (Free Tier disponível)
+### 1. Criar conta no Railway
+- Acesse: https://railway.app
+- Faça login com GitHub
 
-### 2. Criar uma VM Always Free
-- Vá em: Compute → Instances → Create Instance
-- Shape: VM.Standard.E2.1.Micro (Always Free)
-- OS: Ubuntu 22.04
-- Gere ou use sua chave SSH
+### 2. Criar novo projeto
+- Clique em "New Project"
+- Selecione "Deploy from GitHub repo"
+- Conecte seu repositório
+
+### 3. Configurar Volume (IMPORTANTE!)
+- Vá em Settings → Volumes
+- Adicione um volume:
+  - Mount Path: `/app/auth_info`
+  - Isso persiste a sessão do WhatsApp!
+
+### 4. Deploy automático
+- Railway faz deploy automático a cada push
+- Acesse a URL gerada pelo Railway
+
+### 5. Configurar Webhook na Hotmart
+- Use a URL do Railway: `https://seu-app.railway.app/webhook/seu-projeto`
+
 
 ### 3. Conectar via SSH
 ```bash
