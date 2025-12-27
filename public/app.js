@@ -94,6 +94,12 @@ async function connectWhatsApp() {
   setTimeout(() => loadWhatsApp(), 1000);
 }
 
+async function forceNewQR() {
+  showToast('Gerando novo QR Code...', 'info');
+  await fetch(`${API}/api/whatsapp/force-new-qr`, { method: 'POST' });
+  setTimeout(() => loadWhatsApp(), 2000);
+}
+
 async function loadWhatsApp() {
   waPageActive = true;
   document.getElementById('pageTitle').textContent = 'WhatsApp';
@@ -130,32 +136,38 @@ async function loadWhatsApp() {
       <div class="qr-container">
         <h3>📱 Escaneie o QR Code</h3>
         <p style="color:var(--text-secondary);margin-top:8px;">Abra o WhatsApp > Menu > Aparelhos conectados</p>
-        <div class="qr-code"><img src="${status.qrCode}" alt="QR Code"></div>
-        <p style="font-size:13px;color:var(--text-secondary);">Aguardando leitura... (atualiza automaticamente)</p>
+        <div class="qr-code"><img src="${status.qrCode}" alt="QR Code" id="qrImage"></div>
+        <p style="font-size:13px;color:var(--text-secondary);">⏱️ O QR expira em ~60s - atualizando automaticamente</p>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+          <button class="btn btn-secondary btn-sm" onclick="forceNewQR()">🔄 Novo QR</button>
+          <button class="btn btn-secondary btn-sm" onclick="loadWhatsApp()">🔃 Atualizar</button>
+        </div>
       </div>
     `;
-    // Atualizar a cada 2 segundos enquanto aguarda QR
+    // Atualizar a cada 1.5 segundos enquanto aguarda QR (mais rápido)
     setTimeout(() => {
       if (waPageActive) loadWhatsApp();
-    }, 2000);
+    }, 1500);
   } else if (status.state === 'connecting') {
     html = `
       <div class="qr-container">
         <h3>🔌 Conectando...</h3>
         <div style="font-size:48px;margin:20px;">⏳</div>
         <p style="color:var(--text-secondary);">Aguarde, conectando ao WhatsApp...</p>
+        <p style="font-size:12px;color:var(--text-secondary);margin-top:12px;">Isso pode levar até 30 segundos</p>
       </div>
     `;
-    // Atualizar a cada 2 segundos
+    // Atualizar a cada 1.5 segundos
     setTimeout(() => {
       if (waPageActive) loadWhatsApp();
-    }, 2000);
+    }, 1500);
   } else {
     html = `
       <div class="qr-container">
         <h3>📱 Conectar WhatsApp</h3>
         <p style="color:var(--text-secondary);margin:20px 0;">Clique no botão abaixo para gerar o QR Code</p>
         <button class="btn btn-primary" onclick="connectWhatsApp()">Gerar QR Code</button>
+        <p style="font-size:12px;color:var(--text-secondary);margin-top:16px;">💡 Certifique-se de que o WhatsApp está atualizado no celular</p>
       </div>
     `;
   }

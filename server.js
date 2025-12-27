@@ -209,12 +209,45 @@ async function saveSessionToSupabase() {
   }
 }
 
-async function connectWhatsApp() {
+// Função para limpar sessão do Supabase (quando detectar logout)
+async function clearSessionFromSupabase() {
+  if (!supabase) return;
+
   try {
-    // Restaurar sessão do Supabase antes de conectar
-    if (supabase) {
+    const { error } = await supabase
+      .from('whatsapp_sessions')
+      .delete()
+      .eq('session_id', 'whatsapp_session');
+
+    if (error) {
+      console.error('❌ Erro ao limpar sessão do Supabase:', error.message);
+    } else {
+      console.log('🗑️ Sessão removida do Supabase');
+    }
+  } catch (error) {
+    console.error('❌ Erro ao limpar sessão:', error.message);
+  }
+}
+
+// Flag para evitar restaurar sessão quando acabou de fazer logout
+let skipSupabaseRestore = false;
+let isConnecting = false; // Evitar múltiplas conexões simultâneas
+
+async function connectWhatsApp() {
+  // Evitar múltiplas conexões simultâneas
+  if (isConnecting) {
+    console.log('⚠️ Já está conectando, ignorando...');
+    return;
+  }
+
+  isConnecting = true;
+
+  try {
+    // Restaurar sessão do Supabase antes de conectar (se não foi logout recente)
+    if (supabase && !skipSupabaseRestore) {
       await restoreSessionFromSupabase();
     }
+    skipSupabaseRestore = false; // Reset flag
 
     const { state, saveCreds } = await useMultiFileAuthState(join(__dirname, 'auth_info'));
 
@@ -257,25 +290,35 @@ async function connectWhatsApp() {
 
         connectionState = 'disconnected';
         qrCode = null;
+        isConnecting = false; // Reset flag para permitir nova conexão
 
         console.log(`❌ Conexão fechada. Status: ${statusCode}`);
 
-        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttempts++;
-          // Delay exponencial: 5s, 10s, 20s, 40s...
-          const delay = Math.min(RECONNECT_INTERVAL * Math.pow(1.5, reconnectAttempts - 1), 60000);
-          console.log(`🔄 Reconectando em ${delay / 1000}s... (tentativa ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-          setTimeout(connectWhatsApp, delay);
-        } else if (statusCode === DisconnectReason.loggedOut) {
-          console.log('🚪 Logout detectado. Limpando sessão...');
+        if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+          console.log('🚪 Logout detectado. Limpando sessão local e do Supabase...');
+
+          // Marcar para não restaurar do Supabase na próxima conexão
+          skipSupabaseRestore = true;
+
           // Limpar a pasta de autenticação para forçar novo QR
           const fs = await import('fs');
           const authPath = join(__dirname, 'auth_info');
           if (fs.existsSync(authPath)) {
             fs.rmSync(authPath, { recursive: true, force: true });
           }
+
+          // Limpar sessão do Supabase
+          await clearSessionFromSupabase();
+
           reconnectAttempts = 0;
-          setTimeout(connectWhatsApp, 2000);
+          console.log('🔄 Gerando novo QR Code em 3 segundos...');
+          setTimeout(connectWhatsApp, 3000);
+        } else if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          // Delay exponencial: 5s, 10s, 20s, 40s...
+          const delay = Math.min(RECONNECT_INTERVAL * Math.pow(1.5, reconnectAttempts - 1), 60000);
+          console.log(`🔄 Reconectando em ${delay / 1000}s... (tentativa ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+          setTimeout(connectWhatsApp, delay);
         } else {
           console.log('❌ Máximo de tentativas atingido. Reinicie o servidor ou escaneie o QR novamente.');
         }
@@ -283,6 +326,7 @@ async function connectWhatsApp() {
         connectionState = 'connected';
         qrCode = null;
         reconnectAttempts = 0; // Reset contador de tentativas
+        isConnecting = false; // Reset flag
         connectedNumber = sock.user?.id?.split(':')[0] || sock.user?.id?.split('@')[0];
         console.log('✅ WhatsApp conectado!', connectedNumber);
       } else if (connection === 'connecting') {
@@ -319,6 +363,7 @@ async function connectWhatsApp() {
 
   } catch (error) {
     console.error('❌ Erro ao conectar WhatsApp:', error);
+    isConnecting = false; // Reset flag para permitir nova tentativa
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
       reconnectAttempts++;
       console.log(`🔄 Tentando reconectar em ${RECONNECT_INTERVAL / 1000}s...`);
@@ -353,6 +398,28 @@ app.post('/api/whatsapp/disconnect', async (req, res) => {
     connectedNumber = null;
   }
   res.json({ success: true });
+});
+
+// Forçar nova geração de QR Code
+app.post('/api/whatsapp/force-new-qr', async (req, res) => {
+  try {
+    // Fechar conexão atual se existir
+    if (sock) {
+      sock.end();
+      sock = null;
+    }
+
+    connectionState = 'disconnected';
+    qrCode = null;
+    reconnectAttempts = 0;
+
+    // Reconectar (vai gerar novo QR)
+    setTimeout(() => connectWhatsApp(), 500);
+
+    res.json({ success: true, message: 'Gerando novo QR Code...' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 app.get('/api/whatsapp/groups', async (req, res) => {
